@@ -119,6 +119,19 @@ spec:
                   name: {{ .Values.forwarder.changelogWebhookSecret.name | quote }}
                   key: {{ .Values.forwarder.changelogWebhookSecret.key | quote }}
             {{- end }}
+            # --- Slack dual-emit (alerts + changelog also posted to Slack) ---
+            # All keys sourced from one secret; each optional so a missing key
+            # doesn't block startup and Discord-only keeps working.
+            {{- if .Values.forwarder.slackSecret }}
+            {{- range $env, $key := dict "SLACK_BOT_TOKEN" "SLACK_BOT_TOKEN" "SLACK_CHANNEL_CRITICAL" "SLACK_CHANNEL_CRITICAL" "SLACK_CHANNEL_WARNING" "SLACK_CHANNEL_WARNING" "SLACK_CHANNEL_INFO" "SLACK_CHANNEL_INFO" "SLACK_CHANNEL_CHANGELOG" "SLACK_CHANNEL_CHANGELOG" }}
+            - name: {{ $env }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.forwarder.slackSecret | quote }}
+                  key: {{ $key | quote }}
+                  optional: true
+            {{- end }}
+            {{- end }}
             - name: PROPOSALS_DB
               value: {{ .Values.forwarder.proposalsDbPath | default "/data/proposals.db" | quote }}
           ports:

@@ -77,6 +77,11 @@ forwarder:
   changelogWebhookSecret: {}
     # name: argus-forwarder
     # key: DISCORD_WEBHOOK_CHANGELOG
+
+  # Slack dual-emit: name of a secret holding SLACK_BOT_TOKEN and
+  # SLACK_CHANNEL_{CRITICAL,WARNING,INFO,CHANGELOG}. When set, every alert +
+  # changelog post also goes to Slack (chat.postMessage). Empty = Discord only.
+  slackSecret: ""  # e.g. "slack-credentials"
   # GitHub PAT for merge-on-approve. When unset, approves mark status
   # 'approved-pending-merge' but don't merge — useful for staging the flow
   # before granting the PAT.

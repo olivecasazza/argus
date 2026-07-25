@@ -74,6 +74,42 @@ CHANGELOG_WEBHOOK = os.environ.get("DISCORD_WEBHOOK_CHANGELOG", "")
 
 async def _post_changelog(session: ClientSession, line: str) -> None:
     await _post_discord(session, CHANGELOG_WEBHOOK, line)
+    await _post_slack(session, SLACK_CHANGELOG_CHANNEL, line)
+
+
+# --- Slack (dual-emit alongside Discord) ---------------------------------- #
+# Every alert/changelog post also goes to Slack when a bot token + channel are
+# configured. No-op when either is unset, so Discord-only keeps working.
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
+SLACK_CHANNELS: dict[str, str] = {
+    "critical": os.environ.get("SLACK_CHANNEL_CRITICAL", ""),
+    "warning": os.environ.get("SLACK_CHANNEL_WARNING", ""),
+    "info": os.environ.get("SLACK_CHANNEL_INFO", ""),
+}
+SLACK_CHANGELOG_CHANNEL = os.environ.get("SLACK_CHANNEL_CHANGELOG", "")
+
+
+def _slack_channel(severity: str) -> str:
+    return SLACK_CHANNELS.get(severity) or SLACK_CHANNELS.get("warning", "")
+
+
+async def _post_slack(session: ClientSession, channel: str, text: str) -> None:
+    if not SLACK_BOT_TOKEN or not channel:
+        return
+    # Discord bold (**x**) -> Slack mrkdwn (*x*); emoji shortcodes work in both.
+    text = text.replace("**", "*")
+    try:
+        resp = await session.post(
+            "https://slack.com/api/chat.postMessage",
+            headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
+            json={"channel": channel, "text": text},
+            timeout=ClientTimeout(total=20),
+        )
+        body = await resp.json()
+        if not body.get("ok"):
+            log.warning("slack post failed: %s", body.get("error"))
+    except Exception as exc:  # noqa: BLE001
+        log.warning("slack post error: %s", exc)
 
 # --- Phase 3: project-agnostic repo mapping ------------------------------- #
 REPO_MAPPINGS: dict[str, str] = json.loads(os.environ.get("REPO_MAPPINGS", "{}"))
@@ -599,17 +635,16 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
     namespace = labels.get("namespace", "")
     fp = _fingerprint(alert)
     webhook = _resolve_webhook(severity)
+    slack_channel = _slack_channel(severity)
 
     if _is_duplicate(fp):
         log.info("dedupe %s %s", alertname, fp)
         return
 
     log.info("triage start: %s severity=%s fp=%s", alertname, severity, fp)
-    await _post_discord(
-        session,
-        webhook,
-        f":mag: **Investigating** `{alertname}` ({severity}) `{fp[:12]}`",
-    )
+    _investigating = f":mag: **Investigating** `{alertname}` ({severity}) `{fp[:12]}`"
+    await _post_discord(session, webhook, _investigating)
+    await _post_slack(session, slack_channel, _investigating)
 
     analysis = await _investigate(session, alert)
 
@@ -628,13 +663,15 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
             pr_number=pr_number,
             triage=analysis,
         )
-        await _post_discord_with_components(
-            session,
-            webhook,
+        _proposed = (
             f":white_check_mark: **Triage + proposed fix** `{alertname}` "
-            f"(proposal #{proposal_id})\n{analysis}",
-            _button_view(proposal_id),
+            f"(proposal #{proposal_id})\n{analysis}"
         )
+        await _post_discord_with_components(
+            session, webhook, _proposed, _button_view(proposal_id)
+        )
+        # Slack mirror (text only — HITL buttons remain Discord-side for now).
+        await _post_slack(session, slack_channel, _proposed)
         log.info(
             "triage done: %s proposal #%d pr=%s#%d",
             alertname,
@@ -648,11 +685,9 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
             f"proposed fix #{proposal_id} {pr_url}",
         )
     else:
-        await _post_discord(
-            session,
-            webhook,
-            f":white_check_mark: **Triage** `{alertname}`\n{analysis}",
-        )
+        _triaged = f":white_check_mark: **Triage** `{alertname}`\n{analysis}"
+        await _post_discord(session, webhook, _triaged)
+        await _post_slack(session, slack_channel, _triaged)
         log.info("triage done: %s (no PR proposed)", alertname)
         await _post_changelog(
             session,
