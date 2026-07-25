@@ -50,10 +50,6 @@ forwarder:
     # Add per-app repos when the fix lives in the app, not the cluster:
     # "apps/stitch-ash": "olivecasazza/stitch-ash"
 
-  forwarderSecret:
-    name: argus-forwarder
-    key: DISCORD_WEBHOOK
-
   # Discord webhook for the default channel. Secret-sourced. The per-channel
   # webhooks below, when set, override this for that severity.
   discordSecret:
