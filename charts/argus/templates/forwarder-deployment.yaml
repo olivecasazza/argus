@@ -104,6 +104,16 @@ spec:
                   name: {{ .Values.forwarder.githubToken.name | quote }}
                   key: {{ .Values.forwarder.githubToken.key | quote }}
             {{- end }}
+            # --- Changelog channel (activity feed + change ledger) ---
+            # Webhook is a credential -> secretKeyRef only. Optional; forwarder
+            # skips changelog posts when unset.
+            {{- if .Values.forwarder.changelogWebhookSecret }}
+            - name: DISCORD_WEBHOOK_CHANGELOG
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.forwarder.changelogWebhookSecret.name | quote }}
+                  key: {{ .Values.forwarder.changelogWebhookSecret.key | quote }}
+            {{- end }}
             - name: PROPOSALS_DB
               value: {{ .Values.forwarder.proposalsDbPath | default "/data/proposals.db" | quote }}
           ports:

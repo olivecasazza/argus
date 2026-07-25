@@ -69,6 +69,14 @@ forwarder:
     # key: DISCORD_BOT_TOKEN
   # Control channel for status posts (e.g. "argus HITL bot online")
   discordControlChannelId: ""
+
+  # Changelog channel: a running ledger of argus activity (every triage) +
+  # proposal lifecycle transitions (proposed/approved/merged/rejected),
+  # separate from the severity-routed alert channels. Webhook is a credential,
+  # so secretKeyRef only. Unset = changelog posts skipped.
+  changelogWebhookSecret: {}
+    # name: argus-forwarder
+    # key: DISCORD_WEBHOOK_CHANGELOG
   # GitHub PAT for merge-on-approve. When unset, approves mark status
   # 'approved-pending-merge' but don't merge — useful for staging the flow
   # before granting the PAT.

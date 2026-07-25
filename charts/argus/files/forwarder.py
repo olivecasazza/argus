@@ -65,6 +65,16 @@ CHANNEL_WEBHOOKS: dict[str, str] = {
     "deals": os.environ.get("DISCORD_WEBHOOK_DEALS", ""),
 }
 
+# --- Changelog channel ---------------------------------------------------- #
+# A running ledger of argus activity, separate from the severity-routed alert
+# channels: every triage (activity feed) + every proposal lifecycle transition
+# (change ledger). No-op when unset (empty webhook -> _post_discord returns).
+CHANGELOG_WEBHOOK = os.environ.get("DISCORD_WEBHOOK_CHANGELOG", "")
+
+
+async def _post_changelog(session: ClientSession, line: str) -> None:
+    await _post_discord(session, CHANGELOG_WEBHOOK, line)
+
 # --- Phase 3: project-agnostic repo mapping ------------------------------- #
 REPO_MAPPINGS: dict[str, str] = json.loads(os.environ.get("REPO_MAPPINGS", "{}"))
 
@@ -505,6 +515,11 @@ async def _handle_button(interaction: "Any", http_session: ClientSession) -> Non
             f":white_check_mark: **Approved** by {actor} — {msg}\n"
             f"`{row['alertname']}` → {row['pr_url']}"
         )
+        await _post_changelog(
+            http_session,
+            f":white_check_mark: **{status}** #{proposal_id} "
+            f"`{row['alertname']}` by {actor} → {row['pr_url']}",
+        )
     elif action == "reject":
         _, msg = await _close_pr(http_session, row["repo"], row["pr_number"])
         _set_proposal_status(proposal_id, "rejected", actor, msg)
@@ -512,9 +527,19 @@ async def _handle_button(interaction: "Any", http_session: ClientSession) -> Non
             f":no_entry: **Rejected** by {actor} — {msg}\n"
             f"`{row['alertname']}` → {row['pr_url']}"
         )
+        await _post_changelog(
+            http_session,
+            f":no_entry: **rejected** #{proposal_id} "
+            f"`{row['alertname']}` by {actor}",
+        )
     elif action == "revise":
         _set_proposal_status(
             proposal_id, "needs-revision", actor, "human requested revision"
+        )
+        await _post_changelog(
+            http_session,
+            f":pencil: **revision requested** #{proposal_id} "
+            f"`{row['alertname']}` by {actor}",
         )
         await interaction.response.send_message(
             f":pencil: **Revision requested** by {actor} for proposal "
@@ -617,6 +642,11 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
             repo,
             pr_number,
         )
+        await _post_changelog(
+            session,
+            f":clipboard: triaged `{alertname}` ({severity}) → "
+            f"proposed fix #{proposal_id} {pr_url}",
+        )
     else:
         await _post_discord(
             session,
@@ -624,6 +654,10 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
             f":white_check_mark: **Triage** `{alertname}`\n{analysis}",
         )
         log.info("triage done: %s (no PR proposed)", alertname)
+        await _post_changelog(
+            session,
+            f":memo: triaged `{alertname}` ({severity}) → no change proposed",
+        )
 
 
 async def _post_discord_with_components(
@@ -746,6 +780,11 @@ async def _handle_proposal_action(request: web.Request) -> web.Response:
 
     updated = _set_proposal_status(
         proposal_id, status, actor, f"{note} ({msg})".strip()
+    )
+    emoji = ":white_check_mark:" if action == "approve" else ":no_entry:"
+    await _post_changelog(
+        session,
+        f"{emoji} **{status}** #{proposal_id} `{row['alertname']}` by {actor}",
     )
     return web.json_response(
         {"proposal": dict(updated) if updated else None, "result": msg}
