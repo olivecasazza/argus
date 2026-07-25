@@ -8,6 +8,11 @@ metadata:
     app.kubernetes.io/component: forwarder
 spec:
   replicas: 1
+  # The proposals PVC is RWO (SQLite HITL state). RollingUpdate surges a second
+  # pod that can't Multi-Attach the volume and deadlocks the rollout; Recreate
+  # terminates the old pod first so the new one can mount.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: argus
