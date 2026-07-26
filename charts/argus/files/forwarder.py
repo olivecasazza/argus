@@ -77,6 +77,19 @@ async def _post_changelog(session: ClientSession, line: str) -> None:
     await _post_slack(session, SLACK_CHANGELOG_CHANNEL, line)
 
 
+def _no_pr_reason() -> str:
+    """Why a triage produced no PR.
+
+    Holmes can only propose a fix when the github MCP addon is on AND a token
+    is present. With them off, EVERY triage ends without a PR — saying "no
+    change proposed" reads as a judgement Holmes never made, so name the real
+    reason instead.
+    """
+    if not GITHUB_TOKEN:
+        return "analysis only (PR proposals disabled)"
+    return "no fix proposed"
+
+
 # --- Slack (dual-emit alongside Discord) ---------------------------------- #
 # Every alert/changelog post also goes to Slack when a bot token + channel are
 # configured. No-op when either is unset, so Discord-only keeps working.
@@ -691,7 +704,7 @@ async def _triage(session: ClientSession, alert: dict[str, Any]) -> None:
         log.info("triage done: %s (no PR proposed)", alertname)
         await _post_changelog(
             session,
-            f":memo: triaged `{alertname}` ({severity}) → no change proposed",
+            f":memo: triaged `{alertname}` ({severity}) → {_no_pr_reason()}",
         )
 
 
