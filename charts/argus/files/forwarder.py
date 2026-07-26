@@ -849,11 +849,21 @@ async def _health(_: web.Request) -> web.Response:
 
 
 async def _main() -> None:
-    if not _DEFAULT_WEBHOOK and not any(CHANNEL_WEBHOOKS.values()):
+    # Require at least ONE sink — Discord or Slack. This guard predates Slack
+    # support and demanded a Discord webhook, so a valid Slack-only deployment
+    # crashlooped on startup and took alerting down with it. Still fatal when
+    # nothing at all is configured, since that would silently blackhole alerts.
+    _has_discord = bool(_DEFAULT_WEBHOOK) or any(CHANNEL_WEBHOOKS.values())
+    _has_slack = bool(SLACK_BOT_TOKEN) and (
+        any(SLACK_CHANNELS.values()) or bool(SLACK_CHANGELOG_CHANNEL)
+    )
+    if not _has_discord and not _has_slack:
         raise SystemExit(
-            "no Discord webhook configured — set DISCORD_WEBHOOK_DEFAULT "
-            "or DISCORD_WEBHOOK_{CRITICAL,WARNING,INFO,DEALS}"
+            "no alert sink configured — set DISCORD_WEBHOOK_DEFAULT / "
+            "DISCORD_WEBHOOK_{CRITICAL,WARNING,INFO,DEALS}, or SLACK_BOT_TOKEN "
+            "plus SLACK_CHANNEL_{CRITICAL,WARNING,INFO,CHANGELOG}"
         )
+    log.info("sinks: discord=%s slack=%s", _has_discord, _has_slack)
 
     # Initialize DB on startup (creates tables if missing)
     with closing(_db()) as conn:
