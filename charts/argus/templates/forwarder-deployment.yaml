@@ -70,6 +70,7 @@ spec:
             # Only emit per-channel env vars when explicitly set — otherwise
             # the forwarder's os.environ.get(..., default) falls back to
             # DISCORD_WEBHOOK_DEFAULT for critical/warning and skips info/deals.
+            {{- if or .Values.forwarder.discordChannels.default .Values.forwarder.discordSecret }}
             - name: DISCORD_WEBHOOK_DEFAULT
               {{- if .Values.forwarder.discordChannels.default }}
               value: {{ .Values.forwarder.discordChannels.default | quote }}
@@ -79,6 +80,7 @@ spec:
                   name: {{ .Values.forwarder.discordSecret.name | quote }}
                   key: {{ .Values.forwarder.discordSecret.key | quote }}
               {{- end }}
+            {{- end }}
             {{- $chanMap := dict "critical" .Values.forwarder.discordChannels.critical "warning" .Values.forwarder.discordChannels.warning "info" .Values.forwarder.discordChannels.info "deals" .Values.forwarder.discordChannels.deals }}
             {{- range $k, $v := $chanMap }}
             {{- if $v }}

@@ -52,6 +52,8 @@ forwarder:
 
   # Discord webhook for the default channel. Secret-sourced. The per-channel
   # webhooks below, when set, override this for that severity.
+  # Set to {} to run Slack-only — the forwarder no-ops on an empty webhook,
+  # so Discord posting is skipped entirely.
   discordSecret:
     name: argus-forwarder
     key: DISCORD_WEBHOOK
