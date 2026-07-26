@@ -50,6 +50,13 @@ forwarder:
     # Add per-app repos when the fix lives in the app, not the cluster:
     # "apps/stitch-ash": "olivecasazza/stitch-ash"
 
+  # Master switch for ALL Discord output. Set false to run Slack-only.
+  # This is a BOOLEAN on purpose: setting discordSecret to {} does NOT disable
+  # Discord, because Helm deep-merges values — an empty map merges into the
+  # non-empty chart default and the webhook env survives. Only an explicit
+  # false (or a null) reliably turns it off.
+  discordEnabled: true
+
   # Discord webhook for the default channel. Secret-sourced. The per-channel
   # webhooks below, when set, override this for that severity.
   # Set to {} to run Slack-only — the forwarder no-ops on an empty webhook,

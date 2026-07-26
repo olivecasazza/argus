@@ -70,7 +70,7 @@ spec:
             # Only emit per-channel env vars when explicitly set — otherwise
             # the forwarder's os.environ.get(..., default) falls back to
             # DISCORD_WEBHOOK_DEFAULT for critical/warning and skips info/deals.
-            {{- if or .Values.forwarder.discordChannels.default .Values.forwarder.discordSecret }}
+            {{- if and .Values.forwarder.discordEnabled (or .Values.forwarder.discordChannels.default .Values.forwarder.discordSecret) }}
             - name: DISCORD_WEBHOOK_DEFAULT
               {{- if .Values.forwarder.discordChannels.default }}
               value: {{ .Values.forwarder.discordChannels.default | quote }}
@@ -114,7 +114,7 @@ spec:
             # --- Changelog channel (activity feed + change ledger) ---
             # Webhook is a credential -> secretKeyRef only. Optional; forwarder
             # skips changelog posts when unset.
-            {{- if .Values.forwarder.changelogWebhookSecret }}
+            {{- if and .Values.forwarder.discordEnabled .Values.forwarder.changelogWebhookSecret }}
             - name: DISCORD_WEBHOOK_CHANGELOG
               valueFrom:
                 secretKeyRef:
